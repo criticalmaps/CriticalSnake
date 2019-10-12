@@ -10,8 +10,8 @@ function getCoordFilter(name) {
       };
     case "Barcelona":
       return (coord) => {
-        return 41.260000 < coord[0] && coord[0] < 41.450000 &&
-                2.000000 < coord[1] && coord[1] < 2.290000;
+        return 41.26 < coord[0] && coord[0] < 41.45 &&
+                2.00 < coord[1] && coord[1] < 2.29;
       };
     default:
       console.warn("Unknown coordinate filter:", name);
@@ -24,6 +24,13 @@ const toFloat = (oldFormat) => {
   chars.splice(-6, 0, '.');
   return chars.join( '' );
 };
+
+const toBool = (str) => {
+  // Will match one and only one of the strings 'true','1', or 'on' rerardless
+  // of capitalization and regardless off surrounding white-space.
+  regex=/^\s*(true|1|on)\s*$/i
+  return regex.test(str);
+}
 
 function toDateUTC(timestamp) {
   const d = new Date(timestamp * 1000);

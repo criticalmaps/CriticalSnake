@@ -38,8 +38,20 @@
   <script src="critical-snake/utils.js"></script>
 
   <script>
-    const params = parseUrlParams(window.location.href);
-    const showMarkerColors = Boolean(params["colors"]);
+    let fetchTimer = null;
+    let settings = {
+      city: "Berlin",
+      bounds: null, // overwrites city, e.g. "[[52.40,13.23],[52.61,13.56]]"
+      location_source: "https://api.criticalmaps.net/postv2",
+      fps: "10",
+      show_stats: "1",
+      show_controls: "1",
+      show_zoom: "1",
+      colors: "0"
+    };
+
+    settings = { ...settings, ...parseUrlParams(window.location.href) };
+    const showMarkerColors = toBool(settings["colors"]);
 
     const baseLayer = L.tileLayer(
       'https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png',
@@ -57,7 +69,9 @@
 //    });
 
     let bikeMap = createBikeMap(L, baseLayer, {
-      showStats: true, showControls: true, showZoom: true
+      showStats: toBool(settings.show_stats),
+      showControls: toBool(settings.show_controls),
+      showZoom: toBool(settings.show_zoom)
     });
 
     let markers = createMarkers(L, showMarkerColors);
@@ -118,7 +132,15 @@
           }
         }
 
-        playbackDataset = postprocess(rawJSONs, getCoordFilter("Berlin"));
+        let locationFilter = null;
+        if (settings.bounds) {
+          const bounds = L.latLngBounds(JSON.parse(settings.bounds));
+          locationFilter = (coord) => bounds.contains(coord);
+        }
+        else {
+          locationFilter = getCoordFilter(settings.city)
+        }
+        playbackDataset = postprocess(rawJSONs, locationFilter);
         playbackFrameIdx = 0;
 
         (new L.marker(playbackDataset.origin, { icon: markers.origin })).addTo(bikeMap);
@@ -178,11 +200,9 @@
 
     // ----------------------------------------------------
 
-    let frameTimer = null;
-    let testFPS = 10;
     function resume(playbackButton) {
       playbackButton.value = "||";
-      frameTimer = setInterval(refreshView, 1000 / testFPS);
+      fetchTimer = setInterval(refreshView, 1000 / parseInt(settings.fps));
       playbackBeginAction = () => {
         const snakeBounds = new L.latLngBounds([
           playbackDataset.snakeBounds.min,
@@ -192,7 +212,7 @@
         bikeMap.fitBounds(snakeBounds, { animate: true });
       };
       playbackEndAction = () => {
-        clearTimeout(frameTimer);
+        clearTimeout(fetchTimer);
         $("#playback").attr("value", "▶");
         playbackFrameIdx = 0;
       };
@@ -200,7 +220,7 @@
 
     function pause(playbackButton) {
       playbackButton.value = "▶";
-      clearTimeout(frameTimer);
+      clearTimeout(fetchTimer);
     }
 
     function isRunning(playbackButton) {

@@ -100,7 +100,7 @@ function postprocess(datasetArray, coordFilter) {
     let frame = { locations: {}, timestamp: 0 };
     for (const hash in dataset.locations) {
       let loc = dataset.locations[hash];
-      let locArray = [ toFloat(loc.latitude), toFloat(loc.longitude) ];
+      let locArray = [ parseFloat(toFloat(loc.latitude)), parseFloat(toFloat(loc.longitude)) ];
       if (coordFilter(locArray)) {
         frame.timestamp = Math.max(frame.timestamp, loc.timestamp);
         frame.locations[hashToId(hash)] = {

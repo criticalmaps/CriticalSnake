@@ -42,7 +42,7 @@
     let settings = {
       city: "Berlin",
       bounds: null, // overwrites city, e.g. "[[52.40,13.23],[52.61,13.56]]"
-      location_source: "https://api.criticalmaps.net/postv2",
+      dataset: null,
       fps: "10",
       show_stats: "1",
       show_controls: "1",
@@ -132,46 +132,50 @@
           }
         }
 
-        let locationFilter = null;
-        if (settings.bounds) {
-          const bounds = L.latLngBounds(JSON.parse(settings.bounds));
-          locationFilter = (coord) => bounds.contains(coord);
-        }
-        else {
-          locationFilter = getCoordFilter(settings.city)
-        }
-        playbackDataset = postprocess(rawJSONs, locationFilter);
-        playbackFrameIdx = 0;
-
-        (new L.marker(playbackDataset.origin, { icon: markers.origin })).addTo(bikeMap);
-        //(new L.marker(L.latLng(...playbackDataset.snakeBounds.max), { icon: markers[2] })).addTo(bikeMap);
-
-        const snakeBounds = new L.latLngBounds([
-          playbackDataset.snakeBounds.min,
-          playbackDataset.snakeBounds.max
-        ]);
-
-        const zoomLevel = 16;
-        bikeMap.flyTo(playbackDataset.origin, zoomLevel, { animate: true });
-
-        $("#progress").hide();
-        $("#playback").show();
-        let stats = $("#stats");
-        const stamp = playbackDataset.frames[0].timestamp;
-        stats.text("📅 {0} 🕗 {1}".format(toDateUTC(stamp), toTimeUTC(stamp)));
-        stats.css("display", "block");
-
-        let slider = $("#history");
-        slider.attr({
-          "min": 0,
-          "max": playbackDataset.frames.length - 1,
-          "value": 0
-        });
-        slider.show();
+        loadIt(rawJSONs);
       });
 
       reader.readAsText(this.files[0]);
     });
+
+    function loadIt(rawJSONs) {
+      let locationFilter = null;
+      if (settings.bounds) {
+        const bounds = L.latLngBounds(JSON.parse(settings.bounds));
+        locationFilter = (coord) => bounds.contains(coord);
+      }
+      else {
+        locationFilter = getCoordFilter(settings.city)
+      }
+      playbackDataset = postprocess(rawJSONs, locationFilter);
+      playbackFrameIdx = 0;
+
+      (new L.marker(playbackDataset.origin, { icon: markers.origin })).addTo(bikeMap);
+      //(new L.marker(L.latLng(...playbackDataset.snakeBounds.max), { icon: markers[2] })).addTo(bikeMap);
+
+      const snakeBounds = new L.latLngBounds([
+        playbackDataset.snakeBounds.min,
+        playbackDataset.snakeBounds.max
+      ]);
+
+      const zoomLevel = 16;
+      bikeMap.flyTo(playbackDataset.origin, zoomLevel, { animate: true });
+
+      $("#progress").hide();
+      $("#playback").show();
+      let stats = $("#stats");
+      const stamp = playbackDataset.frames[0].timestamp;
+      stats.text("📅 {0} 🕗 {1}".format(toDateUTC(stamp), toTimeUTC(stamp)));
+      stats.css("display", "block");
+
+      let slider = $("#history");
+      slider.attr({
+        "min": 0,
+        "max": playbackDataset.frames.length - 1,
+        "value": 0
+      });
+      slider.show();
+    }
 
     // ----------------------------------------------------
 
@@ -187,7 +191,9 @@
           return;
       }
 
-      $("#history")[0].value = playbackFrameIdx;
+      const hist = $("#history");
+      if (hist.hasOwnProperty("0"))
+        hist[0].value = playbackFrameIdx;
 
       let frame = playbackDataset.frames[playbackFrameIdx];
       let trackedBikes = bikeMap.update(frame.locations);
@@ -201,7 +207,9 @@
     // ----------------------------------------------------
 
     function resume(playbackButton) {
-      playbackButton.value = "||";
+      if (playbackButton)
+        playbackButton.value = "||";
+
       fetchTimer = setInterval(refreshView, 1000 / parseInt(settings.fps));
       playbackBeginAction = () => {
         const snakeBounds = new L.latLngBounds([
@@ -226,6 +234,36 @@
     function isRunning(playbackButton) {
       return playbackButton.value != "▶";
     }
+
+    function fetchDataset(datasetUrl) {
+      return new Promise(function(resolve, reject) {
+        $.ajax({ url: datasetUrl })
+          .done(dataStr => {
+            if (dataStr) {
+              const re = new RegExp(/\n/, 'g');
+              dataStr = dataStr.trim().replace(re, ",\n");
+              const jsonData = JSON.parse("[" + dataStr + "]");
+              resolve(jsonData);
+            }
+            else {
+              reject("Empty response from " + url);
+            }
+          })
+        .fail(() => {
+          reject("Error querying data from " + url);
+        });
+      });
+    }
+
+    $(() => {
+      if (settings.dataset) {
+        fetchDataset(settings.dataset).then(locations => {
+          console.log("Replaying " + settings.dataset);
+          loadIt(locations);
+          resume(null);
+        });
+      }
+    });
   </script>
 </body>
 </html>

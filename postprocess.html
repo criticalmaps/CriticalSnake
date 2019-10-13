@@ -150,7 +150,7 @@
         params.coordFilter = getCoordFilter(settings.city)
       }
       params.groupDistanceMax = parseFloat(settings.group_dist);
-      params.groupSizeMin = parseFloat(settings.group_size);
+      params.groupSizeMin = parseInt(settings.group_size);
       return params;
     }
 

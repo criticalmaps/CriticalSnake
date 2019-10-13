@@ -154,7 +154,7 @@ function postprocess(datasetArray, params) {
     groups.sort((a, b) => { return b.size - a.size; });
 
     for (const group of groups) {
-      if (group.size >= params.groupDistanceMax && !group.overlap(...snakes)) {
+      if (group.size >= params.groupSizeMin && !group.overlap(...snakes)) {
         snakes.push(group);
       }
     }

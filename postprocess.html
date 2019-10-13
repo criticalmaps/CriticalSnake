@@ -47,7 +47,9 @@
       show_stats: "1",
       show_controls: "1",
       show_zoom: "1",
-      colors: "0"
+      colors: "0",
+      group_dist: "0.0025",
+      group_size: "16"
     };
 
     settings = { ...settings, ...parseUrlParams(window.location.href) };
@@ -138,16 +140,23 @@
       reader.readAsText(this.files[0]);
     });
 
-    function loadIt(rawJSONs) {
-      let locationFilter = null;
+    function initPostProcessParams(settings) {
+      let params = {};
       if (settings.bounds) {
         const bounds = L.latLngBounds(JSON.parse(settings.bounds));
-        locationFilter = (coord) => bounds.contains(coord);
+        params.coordFilter = (coord) => bounds.contains(coord);
       }
       else {
-        locationFilter = getCoordFilter(settings.city)
+        params.coordFilter = getCoordFilter(settings.city)
       }
-      playbackDataset = postprocess(rawJSONs, locationFilter);
+      params.groupDistanceMax = parseFloat(settings.group_dist);
+      params.groupSizeMin = parseFloat(settings.group_size);
+      return params;
+    }
+
+    function loadIt(rawJSONs) {
+      const params = initPostProcessParams(settings);
+      playbackDataset = postprocess(rawJSONs, params);
       playbackFrameIdx = 0;
 
       (new L.marker(playbackDataset.origin, { icon: markers.origin })).addTo(bikeMap);

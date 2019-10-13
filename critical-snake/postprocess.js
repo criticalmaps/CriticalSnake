@@ -26,7 +26,7 @@ if (!Set.prototype.merge) {
   };
 }
 
-function postprocess(datasetArray, coordFilter) {
+function postprocess(datasetArray, params) {
   const unaryEach = (operator, arrays) => {
     console.assert(arrays.length == 1);
     let out = [];
@@ -101,7 +101,7 @@ function postprocess(datasetArray, coordFilter) {
     for (const hash in dataset.locations) {
       let loc = dataset.locations[hash];
       let locArray = [ parseFloat(toFloat(loc.latitude)), parseFloat(toFloat(loc.longitude)) ];
-      if (coordFilter(locArray)) {
+      if (params.coordFilter(locArray)) {
         frame.timestamp = Math.max(frame.timestamp, loc.timestamp);
         frame.locations[hashToId(hash)] = {
           coord: locArray,
@@ -115,7 +115,7 @@ function postprocess(datasetArray, coordFilter) {
   // Radial distance
   const sq = (x) => Math.pow(x, 2);
   const inGroupDistance = (A, B) => {
-    return sq(A[0] - B[0]) + sq(A[1] - B[1]) < sq(0.0025);
+    return sq(A[0] - B[0]) + sq(A[1] - B[1]) < sq(params.groupDistanceMax);
   };
 
   // Detect snakes: >16 locations within range
@@ -154,7 +154,7 @@ function postprocess(datasetArray, coordFilter) {
     groups.sort((a, b) => { return b.size - a.size; });
 
     for (const group of groups) {
-      if (group.size > 15 && !group.overlap(...snakes)) {
+      if (group.size >= params.groupDistanceMax && !group.overlap(...snakes)) {
         snakes.push(group);
       }
     }

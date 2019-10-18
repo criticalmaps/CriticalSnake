@@ -1,5 +1,5 @@
 
-function getCoordFilter(name) {
+function createCityCoordFilter(name) {
   switch(name) {
     case "":
       return (coord) => true;
@@ -17,6 +17,11 @@ function getCoordFilter(name) {
       console.warn("Unknown coordinate filter:", name);
       return (coord) => true;
   }
+}
+
+function createBoundsCoordFilter(latlngStr) {
+  const bounds = L.latLngBounds(JSON.parse(latlngStr));
+  return (coord) => bounds.contains(coord);
 }
 
 const toFloat = (oldFormat) => {

@@ -29,7 +29,6 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.5.1/leaflet.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.5.1/leaflet.js"></script>
   <script src="https://code.jquery.com/jquery-1.10.2.min.js"></script>
-  <!-- <script src="http://maps.stamen.com/js/tile.stamen.js?v1.3.0"></script> -->
 
   <script src="critical-snake/common.js"></script>
   <script src="critical-snake/marker.js"></script>
@@ -53,7 +52,9 @@
     };
 
     settings = { ...settings, ...parseUrlParams(window.location.href) };
-    const showMarkerColors = toBool(settings["colors"]);
+
+    const replayCoordFilter = settings.bounds ? createBoundsCoordFilter(settings.bounds)
+                                              : createCityCoordFilter(settings.city);
 
     const baseLayer = L.tileLayer(
       'https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png',
@@ -65,18 +66,13 @@
       }
     );
 
-//    let layerUrl = "http://c.tile.stamen.com/watercolor/${z}/${x}/${y}.jpg";
-//    const baseLayer = new L.StamenTileLayer("watercolor", {
-//      detectRetina: true
-//    });
-
-    let bikeMap = createBikeMap(L, baseLayer, {
+    let bikeMap = createReplayMap(L, baseLayer, {
       showStats: toBool(settings.show_stats),
       showControls: toBool(settings.show_controls),
       showZoom: toBool(settings.show_zoom)
     });
 
-    let markers = createMarkers(L, showMarkerColors);
+    let markers = createMarkers(L, toBool(settings["colors"]));
     bikeMap.createMarker = (loc) => {
       return L.marker(loc.coord, { icon: markers.bySnakeIdx(loc.snake) });
     };
@@ -140,27 +136,15 @@
       reader.readAsText(this.files[0]);
     });
 
-    function initPostProcessParams(settings) {
-      let params = {};
-      if (settings.bounds) {
-        const bounds = L.latLngBounds(JSON.parse(settings.bounds));
-        params.coordFilter = (coord) => bounds.contains(coord);
-      }
-      else {
-        params.coordFilter = getCoordFilter(settings.city)
-      }
-      params.groupDistanceMax = parseFloat(settings.group_dist);
-      params.groupSizeMin = parseInt(settings.group_size);
-      return params;
-    }
-
     function loadIt(rawJSONs) {
-      const params = initPostProcessParams(settings);
-      playbackDataset = postprocess(rawJSONs, params);
       playbackFrameIdx = 0;
+      playbackDataset = postprocess(rawJSONs, {
+        coordFilter: replayCoordFilter,
+        groupDistanceMax: parseFloat(settings.group_dist),
+        groupSizeMin: parseInt(settings.group_size)
+      });
 
       (new L.marker(playbackDataset.origin, { icon: markers.origin })).addTo(bikeMap);
-      //(new L.marker(L.latLng(...playbackDataset.snakeBounds.max), { icon: markers[2] })).addTo(bikeMap);
 
       const snakeBounds = new L.latLngBounds([
         playbackDataset.snakeBounds.min,

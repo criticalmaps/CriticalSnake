@@ -52,3 +52,12 @@ function toTimeUTC(timestamp) {
     pad2(d.getHours()), pad2(d.getMinutes())
   );
 }
+
+function toDateUTCMonthName(timestamp) {
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const d = new Date(timestamp * 1000);
+  return "{0}. {1} {2}".format(
+    d.getDate(), monthNames[d.getMonth()], d.getFullYear()
+  );
+}

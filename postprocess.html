@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>CriticalSnake Tests</title>
+  <title>CriticalSnake</title>
   <style>
     body {
       background: #333;
@@ -168,6 +168,10 @@
         "value": 0
       });
       slider.show();
+
+      const longDateStr = toDateUTCMonthName(stamp);
+      const cityStr = (!settings.bounds) ? settings.city : '';
+      document.title = "CriticalSnake: {0} {1}".format(cityStr, longDateStr);
     }
 
     // ----------------------------------------------------

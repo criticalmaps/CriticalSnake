@@ -16,6 +16,7 @@ L.Control.StatsView = L.Control.extend({
     stats.style.padding = "3px 8px";
     stats.style.backgroundColor = "#fff";
     stats.style.display = "none";
+    this.ctrl = stats;
     return stats;
   }
 });
@@ -88,38 +89,38 @@ function createReplayMap(L, $, baseLayer, options) {
 
   options = { ...defaultOptions, ...options };
 
-  let bikeMap = new L.map(options.htmlElement, { zoomControl: false });
-  bikeMap.setView(options.center, options.zoom);
-  bikeMap.addLayer(baseLayer);
+  let replayMap = new L.map(options.htmlElement, { zoomControl: false });
+  replayMap.setView(options.center, options.zoom);
+  replayMap.addLayer(baseLayer);
 
   // Customization points
-  bikeMap.createMarker = (loc) => { return L.marker(loc.coord); };
-  bikeMap.onMapZoomed = (bikeMap) => {};
-  bikeMap.on("zoomend", () => {
-    bikeMap.onMapZoomed(bikeMap);
+  replayMap.createMarker = (loc) => { return L.marker(loc.coord); };
+  replayMap.onMapZoomed = (replayMap) => {};
+  replayMap.on("zoomend", () => {
+    replayMap.onMapZoomed(replayMap);
   });
 
   if (options.showStats) {
-    (new L.Control.StatsView({ position: 'topleft' })).addTo(bikeMap);
+    (new L.Control.StatsView({ position: 'topleft' })).addTo(replayMap);
   }
   if (options.showControls) {
-    bikeMap.onPlaybackClicked = (DomElement) => {};
-    bikeMap.onBrowseClicked = (DomElement) => {};
-    bikeMap.onSliderMoved = (DomElement) => {};
-    (new L.Control.PlaybackCtrls({ position: 'bottomleft' })).addTo(bikeMap);
+    replayMap.onPlaybackClicked = (DomElement) => {};
+    replayMap.onBrowseClicked = (DomElement) => {};
+    replayMap.onSliderMoved = (DomElement) => {};
+    (new L.Control.PlaybackCtrls({ position: 'bottomleft' })).addTo(replayMap);
 
   }
   if (options.showZoom) {
-    (new L.Control.Zoom({ position: 'bottomleft' })).addTo(bikeMap);
+    (new L.Control.Zoom({ position: 'bottomleft' })).addTo(replayMap);
   }
 
-  bikeMap.setPlaybackState = (running) => {
+  replayMap.setPlaybackState = (running) => {
     if (options.showControls) {
       $("#playback").attr("value", running ? "||" : "▶");
     }
   };
 
-  bikeMap.updateStats = (stamp, bikes) => {
+  replayMap.updateStats = (stamp, bikes) => {
     if (options.showStats) {
       const templ = bikes ? "📅 {0} 🕗 {1} 📍🚲 {2}" : "📅 {0} 🕗 {1}";
       $("#stats").text(templ.format(
@@ -128,7 +129,7 @@ function createReplayMap(L, $, baseLayer, options) {
     }
   };
 
-  bikeMap.setLoadingInProgress = () => {
+  replayMap.setLoadingInProgress = () => {
     if (options.showControls) {
       $("#browse").hide();
       $("#progress").text("Loading..");
@@ -136,7 +137,7 @@ function createReplayMap(L, $, baseLayer, options) {
     }
   };
 
-  bikeMap.setLoadingDone = () => {
+  replayMap.setLoadingDone = () => {
     if (options.showControls) {
       $("#progress").hide();
       $("#playback").show();
@@ -146,41 +147,41 @@ function createReplayMap(L, $, baseLayer, options) {
     }
   };
 
-  bikeMap.resetPlaybackPos = (maxFrameIdx) => {
+  replayMap.resetPlaybackPos = (maxFrameIdx) => {
     if (options.showControls) {
       const slider = $("#history");
       slider.attr({ min: 0, max: maxFrameIdx });
       slider.show();
-      bikeMap.updatePlaybackPos(0);
+      replayMap.updatePlaybackPos(0);
     }
   }
 
-  bikeMap.updatePlaybackPos = (frameIdx) => {
+  replayMap.updatePlaybackPos = (frameIdx) => {
     if (options.showControls) {
       $("#history")[0].value = frameIdx;
     }
   };
 
-  bikeMap.participants = [];
-  bikeMap.candidates = [];
-  bikeMap.update = (newLocations) => {
-    const insert = marker => { return marker.addTo(bikeMap); };
-    const remove = marker => bikeMap.removeLayer(marker);
+  replayMap.participants = [];
+  replayMap.candidates = [];
+  replayMap.update = (newLocations) => {
+    const insert = marker => { return marker.addTo(replayMap); };
+    const remove = marker => replayMap.removeLayer(marker);
     const selectBucket = loc => {
-      return (loc.snake == null) ? bikeMap.candidates : bikeMap.participants;
+      return (loc.snake == null) ? replayMap.candidates : replayMap.participants;
     };
 
-    bikeMap.participants.popEach(remove);
-    bikeMap.candidates.popEach(remove);
+    replayMap.participants.popEach(remove);
+    replayMap.candidates.popEach(remove);
 
     for (let key in newLocations) {
       const loc = newLocations[key];
-      const marker = insert(bikeMap.createMarker(loc));
+      const marker = insert(replayMap.createMarker(loc));
       selectBucket(loc).push(marker);
     }
 
-    return bikeMap.participants.length + bikeMap.candidates.length;
+    return replayMap.participants.length + replayMap.candidates.length;
   }
 
-  return bikeMap;
+  return replayMap;
 }

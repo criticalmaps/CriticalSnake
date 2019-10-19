@@ -32,7 +32,7 @@
 
   <script src="critical-snake/common.js"></script>
   <script src="critical-snake/marker.js"></script>
-  <script src="critical-snake/bikemap.js"></script>
+  <script src="critical-snake/replaymap.js"></script>
   <script src="critical-snake/postprocess.js"></script>
   <script src="critical-snake/utils.js"></script>
 
@@ -73,18 +73,18 @@
       }
     );
 
-    let bikeMap = createReplayMap(L, $, baseLayer, {
+    let replayMap = createReplayMap(L, $, baseLayer, {
       showStats: toBool(settings.show_stats),
       showControls: toBool(settings.show_controls),
       showZoom: toBool(settings.show_zoom)
     });
 
     let markers = createMarkers(L, toBool(settings["colors"]));
-    bikeMap.createMarker = (loc) => {
+    replayMap.createMarker = (loc) => {
       return L.marker(loc.coord, { icon: markers.bySnakeIdx(loc.snake) });
     };
 
-    bikeMap.onPlaybackClicked = (btn) => {
+    replayMap.onPlaybackClicked = (btn) => {
       if (playback.running) {
         pause();
       } else {
@@ -92,18 +92,18 @@
       }
     };
 
-    bikeMap.onSliderMoved = (sliderElement) => {
+    replayMap.onSliderMoved = (sliderElement) => {
       playback.frameIdx = parseInt(sliderElement.value);
       refreshView();
     };
 
-    bikeMap.onMapZoomed = (bikeMap) => {
-      const px = Math.max(1, bikeMap.getZoom() - 10) * 6;
+    replayMap.onMapZoomed = (replayMap) => {
+      const px = Math.max(1, replayMap.getZoom() - 10) * 6;
       markers.updateSize(px);
     };
 
-    bikeMap.onBrowseClicked = (ctrl) => {
-      bikeMap.setLoadingInProgress();
+    replayMap.onBrowseClicked = (ctrl) => {
+      replayMap.setLoadingInProgress();
 
       if (ctrl.files.length == 0)
         return;
@@ -134,7 +134,7 @@
         load(rawJSONs);
 
         const zoomLevel = 16;
-        bikeMap.flyTo(playback.dataset.origin, zoomLevel, { animate: true });
+        replayMap.flyTo(playback.dataset.origin, zoomLevel, { animate: true });
       });
 
       reader.readAsText(ctrl.files[0]);
@@ -148,7 +148,7 @@
         groupSizeMin: parseInt(settings.group_size)
       });
 
-      bikeMap.addLayer(new L.marker(playback.dataset.origin, {
+      replayMap.addLayer(new L.marker(playback.dataset.origin, {
         icon: markers.origin
       }));
 
@@ -157,9 +157,9 @@
       const cityStr = (!settings.bounds) ? settings.city : '';
       document.title = "CriticalSnake: {0} {1}".format(cityStr, longDateStr);
 
-      bikeMap.setLoadingDone();
-      bikeMap.updateStats(playback.dataset.frames[0].timestamp);
-      bikeMap.resetPlaybackPos(playback.dataset.frames.length - 1);
+      replayMap.setLoadingDone();
+      replayMap.updateStats(playback.dataset.frames[0].timestamp);
+      replayMap.resetPlaybackPos(playback.dataset.frames.length - 1);
     }
 
     // ----------------------------------------------------
@@ -170,10 +170,10 @@
       }
 
       let frame = playback.dataset.frames[playback.frameIdx];
-      let trackedBikes = bikeMap.update(frame.locations);
+      let trackedBikes = replayMap.update(frame.locations);
 
-      bikeMap.updatePlaybackPos(playback.frameIdx);
-      bikeMap.updateStats(frame.timestamp, trackedBikes);
+      replayMap.updatePlaybackPos(playback.frameIdx);
+      replayMap.updateStats(frame.timestamp, trackedBikes);
 
       if (playback.frameIdx == playback.dataset.frames.length - 1) {
         playbackEndAction();
@@ -186,7 +186,7 @@
 //        playback.dataset.snakeBounds.max
 //      ]);
 //
-//      bikeMap.fitBounds(snakeBounds, { animate: true });
+//      replayMap.fitBounds(snakeBounds, { animate: true });
     }
 
     function playbackEndAction() {
@@ -200,7 +200,7 @@
 
     function resume() {
       playback.running = true;
-      bikeMap.setPlaybackState(playback.running);
+      replayMap.setPlaybackState(playback.running);
 
       const ms = 1000 / parseInt(settings.fps);
       playback.fetchTimer = setInterval(() => {
@@ -213,12 +213,12 @@
         playback.dataset.snakeBounds.max
       ]);
 
-      bikeMap.fitBounds(snakeBounds, { animate: true });
+      replayMap.fitBounds(snakeBounds, { animate: true });
     }
 
     function pause() {
       playback.running = false;
-      bikeMap.setPlaybackState(playback.running);
+      replayMap.setPlaybackState(playback.running);
       clearTimeout(playback.fetchTimer);
     }
 
@@ -245,7 +245,7 @@
     $(() => {
       if (settings.dataset) {
         fetchDataset(settings.dataset).then(locations => {
-          bikeMap.setLoadingInProgress();
+          replayMap.setLoadingInProgress();
           console.log("Replaying " + settings.dataset);
           load(locations);
           resume();

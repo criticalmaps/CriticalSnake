@@ -165,10 +165,6 @@
     // ----------------------------------------------------
 
     function refreshView() {
-      if (playback.frameIdx == 0) {
-        playbackBeginAction();
-      }
-
       let frame = playback.dataset.frames[playback.frameIdx];
       let trackedBikes = replayMap.update(frame.locations);
 
@@ -178,15 +174,6 @@
       if (playback.frameIdx == playback.dataset.frames.length - 1) {
         playbackEndAction();
       }
-    }
-
-    function playbackBeginAction() {
-//      const snakeBounds = new L.latLngBounds([
-//        playback.dataset.snakeBounds.min,
-//        playback.dataset.snakeBounds.max
-//      ]);
-//
-//      replayMap.fitBounds(snakeBounds, { animate: true });
     }
 
     function playbackEndAction() {

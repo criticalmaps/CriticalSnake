@@ -16,7 +16,6 @@ L.Control.StatsView = L.Control.extend({
     stats.style.padding = "3px 8px";
     stats.style.backgroundColor = "#fff";
     stats.style.display = "none";
-    this.ctrl = stats;
     return stats;
   }
 });

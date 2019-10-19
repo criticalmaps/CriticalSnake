@@ -37,7 +37,7 @@ function toDateUTC(timestamp) {
   const d = new Date(timestamp * 1000);
   const pad2 = (val) => (val < 10 ? "0" : "") + val;
   return "{0}-{1}-{2}".format(
-    d.getFullYear(), pad2(d.getMonth()), pad2(d.getDate())
+    d.getFullYear(), pad2(d.getMonth() + 1), pad2(d.getDate())
   );
 }
 

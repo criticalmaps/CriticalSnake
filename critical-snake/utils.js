@@ -1,26 +1,22 @@
 
 function createCityCoordFilter(name) {
-  switch(name) {
+  switch(name.toLowerCase()) {
     case "":
       return (coord) => true;
-    case "Berlin":
-      return (coord) => {
-        return 52.40 < coord[0] && coord[0] < 52.61 &&
-                13.23 < coord[1] && coord[1] < 13.56;
-      };
-    case "Barcelona":
-      return (coord) => {
-        return 41.26 < coord[0] && coord[0] < 41.45 &&
-                2.00 < coord[1] && coord[1] < 2.29;
-      };
+    case "berlin":
+      return createBoundsCoordFilter([[52.40,13.23],[52.61,13.56]]);
+    case "barcelona":
+      return createBoundsCoordFilter([[41.26,2.00],[41.45,2.29]]);
+    case "hamburg":
+      return createBoundsCoordFilter([[53.50,9.80],[53.61,10.13]]);
     default:
       console.warn("Unknown coordinate filter:", name);
       return (coord) => true;
   }
 }
 
-function createBoundsCoordFilter(latlngStr) {
-  const bounds = L.latLngBounds(JSON.parse(latlngStr));
+function createBoundsCoordFilter(latlng) {
+  const bounds = L.latLngBounds(latlng);
   return (coord) => bounds.contains(coord);
 }
 

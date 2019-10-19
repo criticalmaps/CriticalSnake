@@ -1,4 +1,14 @@
 
+if (!Array.prototype.popEach) {
+  Array.prototype.popEach = function() {
+    const predicate = Array.prototype.slice.call(arguments)[0];
+    const len = this.length;
+    for (let i = 0; i < len; i++) {
+      predicate(this.pop());
+    }
+  };
+}
+
 L.Control.StatsView = L.Control.extend({
   onAdd: function(map) {
     let stats = L.DomUtil.create('label', 'leaflet-bar');
@@ -50,6 +60,10 @@ L.Control.PlaybackCtrls = L.Control.extend({
       map.onPlaybackClicked(playback, map);
     }, this);
 
+    L.DomEvent.on(browse, 'change', () => {
+      map.onBrowseClicked(browse);
+    });
+
     L.DomEvent.on(slider, 'input', () => {
       map.onSliderMoved(slider);
     }, this);
@@ -62,7 +76,7 @@ L.Control.PlaybackCtrls = L.Control.extend({
   }
 });
 
-function createReplayMap(L, baseLayer, options) {
+function createReplayMap(L, $, baseLayer, options) {
   const defaultOptions = {
     htmlElement: 'osm-map',
     center: [52.5219,13.4045],
@@ -90,34 +104,82 @@ function createReplayMap(L, baseLayer, options) {
   }
   if (options.showControls) {
     bikeMap.onPlaybackClicked = (DomElement) => {};
+    bikeMap.onBrowseClicked = (DomElement) => {};
     bikeMap.onSliderMoved = (DomElement) => {};
     (new L.Control.PlaybackCtrls({ position: 'bottomleft' })).addTo(bikeMap);
+
   }
   if (options.showZoom) {
     (new L.Control.Zoom({ position: 'bottomleft' })).addTo(bikeMap);
   }
 
+  bikeMap.setPlaybackState = (running) => {
+    if (options.showControls) {
+      $("#playback").attr("value", running ? "||" : "▶");
+    }
+  };
+
+  bikeMap.updateStats = (stamp, bikes) => {
+    if (options.showStats) {
+      const templ = bikes ? "📅 {0} 🕗 {1} 📍🚲 {2}" : "📅 {0} 🕗 {1}";
+      $("#stats").text(templ.format(
+        toDateUTC(stamp), toTimeUTC(stamp), bikes)
+      );
+    }
+  };
+
+  bikeMap.setLoadingInProgress = () => {
+    if (options.showControls) {
+      $("#browse").hide();
+      $("#progress").text("Loading..");
+      $("#progress").show();
+    }
+  };
+
+  bikeMap.setLoadingDone = () => {
+    if (options.showControls) {
+      $("#progress").hide();
+      $("#playback").show();
+    }
+    if (options.showStats) {
+      $("#stats").css("display", "block");
+    }
+  };
+
+  bikeMap.resetPlaybackPos = (maxFrameIdx) => {
+    if (options.showControls) {
+      const slider = $("#history");
+      slider.attr({ min: 0, max: maxFrameIdx });
+      slider.show();
+      bikeMap.updatePlaybackPos(0);
+    }
+  }
+
+  bikeMap.updatePlaybackPos = (frameIdx) => {
+    if (options.showControls) {
+      $("#history")[0].value = frameIdx;
+    }
+  };
+
   bikeMap.participants = [];
   bikeMap.candidates = [];
   bikeMap.update = (newLocations) => {
-    bikeMap.participants.forEach(marker => bikeMap.removeLayer(marker));
-    bikeMap.candidates.forEach(marker => bikeMap.removeLayer(marker));
+    const insert = marker => { return marker.addTo(bikeMap); };
+    const remove = marker => bikeMap.removeLayer(marker);
+    const selectBucket = loc => {
+      return (loc.snake == null) ? bikeMap.candidates : bikeMap.participants;
+    };
 
-    let participants = [];
-    let candidates = [];
+    bikeMap.participants.popEach(remove);
+    bikeMap.candidates.popEach(remove);
+
     for (let key in newLocations) {
       const loc = newLocations[key];
-      const marker = bikeMap.createMarker(loc);
-      marker.addTo(bikeMap);
-      if (loc.snake == null)
-        candidates.push(marker);
-      else
-        participants.push(marker);
+      const marker = insert(bikeMap.createMarker(loc));
+      selectBucket(loc).push(marker);
     }
 
-    bikeMap.participants = participants;
-    bikeMap.candidates = candidates;
-    return participants.length + candidates.length;
+    return bikeMap.participants.length + bikeMap.candidates.length;
   }
 
   return bikeMap;

@@ -37,7 +37,6 @@
   <script src="critical-snake/utils.js"></script>
 
   <script>
-    let fetchTimer = null;
     let settings = {
       city: "Berlin",
       bounds: null, // overwrites city, e.g. "[[52.40,13.23],[52.61,13.56]]"
@@ -51,10 +50,18 @@
       group_size: "16"
     };
 
+    let playback = {
+      running: false,
+      dataset: null,
+      frameIdx: 0,
+      fetchTimer: null
+    };
+
     settings = { ...settings, ...parseUrlParams(window.location.href) };
 
-    const replayCoordFilter = settings.bounds ? createBoundsCoordFilter(settings.bounds)
-                                              : createCityCoordFilter(settings.city);
+    const replayCoordFilter = settings.bounds
+            ? createBoundsCoordFilter(JSON.parse(settings.bounds))
+            : createCityCoordFilter(settings.city);
 
     const baseLayer = L.tileLayer(
       'https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png',
@@ -66,7 +73,7 @@
       }
     );
 
-    let bikeMap = createReplayMap(L, baseLayer, {
+    let bikeMap = createReplayMap(L, $, baseLayer, {
       showStats: toBool(settings.show_stats),
       showControls: toBool(settings.show_controls),
       showZoom: toBool(settings.show_zoom)
@@ -77,18 +84,16 @@
       return L.marker(loc.coord, { icon: markers.bySnakeIdx(loc.snake) });
     };
 
-    let playbackFrameIdx = 0;
-    let playbackDataset = null;
-    bikeMap.onPlaybackClicked = (playbackButton) => {
-      if (isRunning(playbackButton)) {
-        pause(playbackButton);
+    bikeMap.onPlaybackClicked = (btn) => {
+      if (playback.running) {
+        pause();
       } else {
-        resume(playbackButton);
+        resume();
       }
     };
 
     bikeMap.onSliderMoved = (sliderElement) => {
-      playbackFrameIdx = sliderElement.value;
+      playback.frameIdx = parseInt(sliderElement.value);
       refreshView();
     };
 
@@ -97,18 +102,14 @@
       markers.updateSize(px);
     };
 
-    // ----------------------------------------------------
+    bikeMap.onBrowseClicked = (ctrl) => {
+      bikeMap.setLoadingInProgress();
 
-    $("#browse").change(function () {
-      $("#browse").hide();
-      $("#progress").text("Loading..");
-      $("#progress").show();
-
-      if (this.files.length == 0)
+      if (ctrl.files.length == 0)
         return;
 
-      if (this.files.length > 1)
-        console.warn("Can only playback one file at a time:", this.files[0].name);
+      if (ctrl.files.length > 1)
+        console.warn("Can only playback one file at a time:", ctrl.files[0].name);
 
       const reader = new FileReader();
       $(reader).on('load', (event) => {
@@ -130,106 +131,95 @@
           }
         }
 
-        loadIt(rawJSONs);
+        load(rawJSONs);
+
+        const zoomLevel = 16;
+        bikeMap.flyTo(playback.dataset.origin, zoomLevel, { animate: true });
       });
 
-      reader.readAsText(this.files[0]);
-    });
+      reader.readAsText(ctrl.files[0]);
+    };
 
-    function loadIt(rawJSONs) {
-      playbackFrameIdx = 0;
-      playbackDataset = postprocess(rawJSONs, {
+    function load(rawJSONs) {
+      playback.frameIdx = 0;
+      playback.dataset = postprocess(rawJSONs, {
         coordFilter: replayCoordFilter,
         groupDistanceMax: parseFloat(settings.group_dist),
         groupSizeMin: parseInt(settings.group_size)
       });
 
-      (new L.marker(playbackDataset.origin, { icon: markers.origin })).addTo(bikeMap);
+      bikeMap.addLayer(new L.marker(playback.dataset.origin, {
+        icon: markers.origin
+      }));
 
-      const snakeBounds = new L.latLngBounds([
-        playbackDataset.snakeBounds.min,
-        playbackDataset.snakeBounds.max
-      ]);
-
-      const zoomLevel = 16;
-      bikeMap.flyTo(playbackDataset.origin, zoomLevel, { animate: true });
-
-      $("#progress").hide();
-      $("#playback").show();
-      let stats = $("#stats");
-      const stamp = playbackDataset.frames[0].timestamp;
-      stats.text("📅 {0} 🕗 {1}".format(toDateUTC(stamp), toTimeUTC(stamp)));
-      stats.css("display", "block");
-
-      let slider = $("#history");
-      slider.attr({
-        "min": 0,
-        "max": playbackDataset.frames.length - 1,
-        "value": 0
-      });
-      slider.show();
-
+      const stamp = playback.dataset.frames[0].timestamp;
       const longDateStr = toDateUTCMonthName(stamp);
       const cityStr = (!settings.bounds) ? settings.city : '';
       document.title = "CriticalSnake: {0} {1}".format(cityStr, longDateStr);
+
+      bikeMap.setLoadingDone();
+      bikeMap.updateStats(playback.dataset.frames[0].timestamp);
+      bikeMap.resetPlaybackPos(playback.dataset.frames.length - 1);
     }
 
     // ----------------------------------------------------
 
-    let playbackBeginAction = () => {};
-    let playbackEndAction = () => {};
     function refreshView() {
-      switch (playbackFrameIdx) {
-        case 0:
-          playbackBeginAction();
-          break;
-        case playbackDataset.frames.length:
-          playbackEndAction();
-          return;
+      if (playback.frameIdx == 0) {
+        playbackBeginAction();
       }
 
-      const hist = $("#history");
-      if (hist.hasOwnProperty("0"))
-        hist[0].value = playbackFrameIdx;
-
-      let frame = playbackDataset.frames[playbackFrameIdx];
+      let frame = playback.dataset.frames[playback.frameIdx];
       let trackedBikes = bikeMap.update(frame.locations);
 
-      $("#stats").text("📅 {0} 🕗 {1} 📍🚲 {2}".format(
-        toDateUTC(frame.timestamp), toTimeUTC(frame.timestamp), trackedBikes));
+      bikeMap.updatePlaybackPos(playback.frameIdx);
+      bikeMap.updateStats(frame.timestamp, trackedBikes);
 
-      playbackFrameIdx += 1;
+      if (playback.frameIdx == playback.dataset.frames.length - 1) {
+        playbackEndAction();
+      }
     }
+
+    function playbackBeginAction() {
+//      const snakeBounds = new L.latLngBounds([
+//        playback.dataset.snakeBounds.min,
+//        playback.dataset.snakeBounds.max
+//      ]);
+//
+//      bikeMap.fitBounds(snakeBounds, { animate: true });
+    }
+
+    function playbackEndAction() {
+      playback.frameIdx = 0;
+      if (playback.running) {
+        pause();
+      }
+    };
 
     // ----------------------------------------------------
 
-    function resume(playbackButton) {
-      if (playbackButton)
-        playbackButton.value = "||";
+    function resume() {
+      playback.running = true;
+      bikeMap.setPlaybackState(playback.running);
 
-      fetchTimer = setInterval(refreshView, 1000 / parseInt(settings.fps));
-      playbackBeginAction = () => {
-        const snakeBounds = new L.latLngBounds([
-          playbackDataset.snakeBounds.min,
-          playbackDataset.snakeBounds.max
-        ]);
+      const ms = 1000 / parseInt(settings.fps);
+      playback.fetchTimer = setInterval(() => {
+        refreshView();
+        playback.frameIdx += 1;
+      }, ms);
 
-        bikeMap.fitBounds(snakeBounds, { animate: true });
-      };
-      playbackEndAction = () => {
-        clearTimeout(fetchTimer);
-        $("#playback").attr("value", "▶");
-        playbackFrameIdx = 0;
-      };
+      const snakeBounds = new L.latLngBounds([
+        playback.dataset.snakeBounds.min,
+        playback.dataset.snakeBounds.max
+      ]);
+
+      bikeMap.fitBounds(snakeBounds, { animate: true });
     }
 
-    function pause(playbackButton) {
-      playbackButton.value = "▶";
-      clearTimeout(fetchTimer);
-    }
-
-    function isRunning(playbackButton) {
-      return playbackButton.value != "▶";
+    function pause() {
+      playback.running = false;
+      bikeMap.setPlaybackState(playback.running);
+      clearTimeout(playback.fetchTimer);
     }
 
     function fetchDataset(datasetUrl) {
@@ -255,9 +245,10 @@
     $(() => {
       if (settings.dataset) {
         fetchDataset(settings.dataset).then(locations => {
+          bikeMap.setLoadingInProgress();
           console.log("Replaying " + settings.dataset);
-          loadIt(locations);
-          resume(null);
+          load(locations);
+          resume();
         });
       }
     });

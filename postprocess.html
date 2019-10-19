@@ -47,7 +47,8 @@
       show_zoom: "1",
       colors: "0",
       group_dist: "0.0025",
-      group_size: "16"
+      group_size: "16",
+      algorithm: "per-frame" // others: "simple"
     };
 
     let playback = {
@@ -133,8 +134,18 @@
 
         load(rawJSONs);
 
-        const zoomLevel = 16;
-        replayMap.flyTo(playback.dataset.origin, zoomLevel, { animate: true });
+        if (playback.dataset.origin) {
+          const zoomLevel = 16;
+          replayMap.flyTo(playback.dataset.origin, zoomLevel, { animate: true });
+        }
+        else {
+          const snakeBounds = new L.latLngBounds([
+            playback.dataset.snakeBounds.min,
+            playback.dataset.snakeBounds.max
+          ]);
+
+          replayMap.fitBounds(snakeBounds, { animate: true });
+        }
       });
 
       reader.readAsText(ctrl.files[0]);
@@ -145,12 +156,15 @@
       playback.dataset = postprocess(rawJSONs, {
         coordFilter: replayCoordFilter,
         groupDistanceMax: parseFloat(settings.group_dist),
-        groupSizeMin: parseInt(settings.group_size)
+        groupSizeMin: parseInt(settings.group_size),
+        algorithm: settings.algorithm
       });
 
-      replayMap.addLayer(new L.marker(playback.dataset.origin, {
-        icon: markers.origin
-      }));
+      if (playback.dataset.origin) {
+        replayMap.addLayer(new L.marker(playback.dataset.origin, {
+          icon: markers.origin
+        }));
+      }
 
       const stamp = playback.dataset.frames[0].timestamp;
       const longDateStr = toDateUTCMonthName(stamp);

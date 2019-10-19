@@ -26,59 +26,57 @@ if (!Set.prototype.merge) {
   };
 }
 
-function postprocess(datasetArray, params) {
-  const unaryEach = (operator, arrays) => {
-    console.assert(arrays.length == 1);
-    let out = [];
-    for (const item of arrays[0])
-      out.push(operator(item));
-    return out;
-  };
+const unaryEach = (operator, arrays) => {
+  console.assert(arrays.length == 1);
+  let out = [];
+  for (const item of arrays[0])
+    out.push(operator(item));
+  return out;
+};
 
-  const binaryEach = (operator, arrays) => {
-    console.assert(arrays.length == 2);
-    console.assert(arrays[0].length == arrays[1].length);
-    let out = [];
-    const items = arrays[0].length;
-    for (let i = 0; i < items; i++) {
-      out.push(operator(arrays[0][i], arrays[1][i]));
+const binaryEach = (operator, arrays) => {
+  console.assert(arrays.length == 2);
+  console.assert(arrays[0].length == arrays[1].length);
+  let out = [];
+  const items = arrays[0].length;
+  for (let i = 0; i < items; i++) {
+    out.push(operator(arrays[0][i], arrays[1][i]));
+  }
+  return out;
+};
+
+const naryEach = (operator, arrays) => {
+  console.assert(arrays.length > 0);
+  //console.assert(isCommutative(operator, arrays));
+  const items = arrays[0].length;
+  let out = [];
+  for (let i = 0; i < items; i++) {
+    let x = arrays[0][i];
+    for (let a = 1; a < arrays.length; a++) {
+      console.assert(arrays[a].length == items);
+      x = operator(x, arrays[a][i]);
     }
-    return out;
+    out.push(x);
+  }
+  console.assert(out.length == items);
+  return out;
+};
+
+const minEach = (As, Bs) => naryEach(Math.min, [As, Bs]);
+const maxEach = (As, Bs) => naryEach(Math.max, [As, Bs]);
+const plusEach = (As, Bs) => binaryEach((a, b) => a + b, [As, Bs]);
+const halfEach = (As) => unaryEach((a) => a / 2, [As]);
+
+const initialCoordBounds = () => {
+  return {
+    min: [90.0, 180.0],
+    max: [-90.0, -180.0],
+    center: []
   };
+};
 
-  const naryEach = (operator, arrays) => {
-    console.assert(arrays.length > 0);
-    //console.assert(isCommutative(operator, arrays));
-    const items = arrays[0].length;
-    let out = [];
-    for (let i = 0; i < items; i++) {
-      let x = arrays[0][i];
-      for (let a = 1; a < arrays.length; a++) {
-        console.assert(arrays[a].length == items);
-        x = operator(x, arrays[a][i]);
-      }
-      out.push(x);
-    }
-    console.assert(out.length == items);
-    return out;
-  };
-
-  const minEach = (As, Bs) => naryEach(Math.min, [As, Bs]);
-  const maxEach = (As, Bs) => naryEach(Math.max, [As, Bs]);
-  const plusEach = (As, Bs) => binaryEach((a, b) => a + b, [As, Bs]);
-  const halfEach = (As) => unaryEach((a) => a / 2, [As]);
-
-  const initialCoordBounds = () => {
-    return {
-      min: [90.0, 180.0],
-      max: [-90.0, -180.0],
-      center: []
-    };
-  };
-
-  console.log("Initial size:", JSON.stringify(datasetArray).length);
-
-  let postprocessedData = {
+function generateFrames(datasetArray, coordFilter) {
+  let data = {
     frames: [],
     origin: null,
     snakeBounds: initialCoordBounds(),
@@ -101,7 +99,7 @@ function postprocess(datasetArray, params) {
     for (const hash in dataset.locations) {
       let loc = dataset.locations[hash];
       let locArray = [ parseFloat(toFloat(loc.latitude)), parseFloat(toFloat(loc.longitude)) ];
-      if (params.coordFilter(locArray)) {
+      if (coordFilter(locArray)) {
         frame.timestamp = Math.max(frame.timestamp, loc.timestamp);
         frame.locations[hashToId(hash)] = {
           coord: locArray,
@@ -109,9 +107,45 @@ function postprocess(datasetArray, params) {
         };
       }
     }
-    postprocessedData.frames.push(frame);
+    data.frames.push(frame);
   }
 
+  return data;
+}
+
+function postprocess(datasetArray, params) {
+  console.log("Initial size:", JSON.stringify(datasetArray).length);
+  let frameData = generateFrames(datasetArray, params.coordFilter);
+
+  switch (params.algorithm) {
+    case "simple": return postprocessSimple(frameData, params);
+    case "per-frame": return postprocessPerFrame(frameData, params);
+    default:
+      console.error("Invalid algorithm option:", params.algorithm);
+      console.log("Falling back to default algorithm");
+      return postprocessPerFrame(frameData, params);
+  }
+}
+
+function postprocessSimple(frameData, params) {
+  // Consider all locations as participants in a snake
+  let bounds = initialCoordBounds();
+  for (let frame of frameData.frames) {
+    for (let id in frame.locations) {
+      frame.locations[id].snake = 0;
+
+      let coord = frame.locations[id].coord;
+      bounds.min = minEach(bounds.min, coord);
+      bounds.max = maxEach(bounds.max, coord);
+    }
+  }
+
+  frameData.snakeBounds = bounds;
+  frameData.participantBounds = bounds;
+  return frameData;
+}
+
+function postprocessPerFrame(frameData, params) {
   // Radial distance
   const sq = (x) => Math.pow(x, 2);
   const inGroupDistance = (A, B) => {
@@ -120,7 +154,7 @@ function postprocess(datasetArray, params) {
 
   // Detect snakes: >16 locations within range
   let participants = [];
-  for (let frame of postprocessedData.frames) {
+  for (let frame of frameData.frames) {
     // Detect groups: check distance each to each
     let groups = [];
     for (const originId in frame.locations) {
@@ -162,7 +196,7 @@ function postprocess(datasetArray, params) {
     //console.log(snakes);
 
     // Add participants of snakes with >=16 locations
-    let bounds = postprocessedData.snakeBounds;
+    let bounds = frameData.snakeBounds;
     let accumulatedOrigin = [ 0, 0 ];
     for (let i = 0; i < snakes.length; i++) {
       snakes[i].forEach(id => {
@@ -172,7 +206,7 @@ function postprocess(datasetArray, params) {
         bounds.min = minEach(bounds.min, coord);
         bounds.max = maxEach(bounds.max, coord);
 
-        if (!postprocessedData.origin) {
+        if (!frameData.origin) {
           accumulatedOrigin[0] += +coord[0];
           accumulatedOrigin[1] += +coord[1];
         }
@@ -190,9 +224,9 @@ function postprocess(datasetArray, params) {
         }
       });
 
-      if (!postprocessedData.origin) {
-        //postprocessedData.origin = halfEach(plusEach(bounds.max, bounds.min));
-        postprocessedData.origin = [
+      if (!frameData.origin) {
+        //frameData.origin = halfEach(plusEach(bounds.max, bounds.min));
+        frameData.origin = [
           accumulatedOrigin[0] / snakes[i].size,
           accumulatedOrigin[1] / snakes[i].size
         ];
@@ -206,8 +240,8 @@ function postprocess(datasetArray, params) {
     deleteCount++;
   };
 
-  let bounds = postprocessedData.participantBounds;
-  for (let frame of postprocessedData.frames) {
+  let bounds = frameData.participantBounds;
+  for (let frame of frameData.frames) {
     for (let id in frame.locations) {
       if (!participants.hasOwnProperty(id)) {
         dropLocation(frame, id);
@@ -226,13 +260,13 @@ function postprocess(datasetArray, params) {
     }
   }
 
-  let pb = postprocessedData.participantBounds;
+  let pb = frameData.participantBounds;
   pb.center = halfEach(plusEach(pb.max, pb.min));
 
-  let sb = postprocessedData.snakeBounds;
+  let sb = frameData.snakeBounds;
   sb.center = halfEach(plusEach(sb.max, sb.min));
 
   console.log("Deleted", deleteCount, "locations");
-  console.log("Postprocessed size:", JSON.stringify(postprocessedData).length);
-  return postprocessedData;
+  console.log("Postprocessed size:", JSON.stringify(frameData).length);
+  return frameData;
 }

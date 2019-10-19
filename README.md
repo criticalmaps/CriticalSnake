@@ -20,6 +20,8 @@ A way to automate the process was added during https://cyclehackberlin.de/ 2019.
 * `colors`: Show different colors for different snakes as boolean.
 * `group_dist`: Maximum distance between participants in a group (map units as float).
 * `group_size`: Minimum size of a group to form a snake (as integer).
+* `algorithm`: Postprocessing algorithm, options: simple, per-frame
+
 
 ## Spoiler
 
